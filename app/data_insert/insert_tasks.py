@@ -1,9 +1,13 @@
 import os
+import sys
 import requests
 from dotenv import load_dotenv
 from app.models.task import Task
 from app.database import SessionLocal
 from sqlalchemy.exc import SQLAlchemyError
+
+# Adiciona o diretório crm_integration ao caminho de busca de módulos
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 # Carregar variáveis de ambiente
 load_dotenv()
