@@ -6,9 +6,6 @@ import os
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(project_root)
 
-# Verifique os caminhos adicionados ao sys.path
-print("Caminhos no sys.path:", sys.path)
-
 # Lista de scripts de inserção que precisam rodar
 scripts = [
     "insert_contacts.py",
