@@ -1,0 +1,1 @@
+5 4,12,20 * * * /home/pstreb/crm_integration/venv/bin/python /home/pstreb/crm_integration/app/update_crm_data.py
