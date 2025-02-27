@@ -1,188 +1,93 @@
-# db.py
-import sqlite3
+from sqlalchemy import create_engine, Column, Integer, String, Float
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 from config import DATABASE_PATH
 
-
-# Função para criar a tabela de contatos
-def create_table():
-    conn = sqlite3.connect(DATABASE_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS contacts (
-        id INTEGER PRIMARY KEY,
-        type_id INTEGER,
-        name TEXT,
-        legal_name TEXT,
-        register TEXT,
-        cnpj TEXT,
-        cpf TEXT,
-        status_id INTEGER,
-        company_id INTEGER,
-        relationship_id INTEGER,
-        line_of_business_id INTEGER,
-        origin_id INTEGER,
-        number_of_employees_id INTEGER,
-        class_id INTEGER,
-        owner_id INTEGER,
-        birthday TEXT,
-        next_anniversary TEXT,
-        previous_anniversary TEXT,
-        note TEXT,
-        email TEXT,
-        website TEXT,
-        role_id INTEGER,
-        department_id INTEGER,
-        skype TEXT,
-        facebook TEXT,
-        street_address TEXT,
-        street_address_number TEXT,
-        street_address_line2 TEXT,
-        neighborhood TEXT,
-        zip_code TEXT,
-        foreign_zip_code TEXT,
-        foreign_zip_code_country_id INTEGER,
-        foreign_zip_code_without_mask TEXT,
-        city_id INTEGER,
-        state_id INTEGER,
-        country_id INTEGER,
-        currency_id INTEGER,
-        email_marketing TEXT,
-        cnae_code TEXT,
-        cnae_name TEXT,
-        cnae_secondary TEXT,
-        latitude REAL,
-        longitude REAL,
-        import_id TEXT,
-        create_importation_id TEXT,
-        update_importation_id TEXT,
-        first_task_id INTEGER,
-        first_task_date TEXT,
-        last_interaction_record_id INTEGER,
-        last_deal_id INTEGER,
-        last_order_id INTEGER,
-        tasks_ordination INTEGER,
-        lead_id INTEGER,
-        editable INTEGER,
-        deletable INTEGER,
-        creator_id INTEGER,
-        updater_id INTEGER,
-        create_date TEXT,
-        last_update_date TEXT,
-        key TEXT,
-        last_document_id INTEGER,
-        avatar_url TEXT,
-        last_company_id INTEGER,
-        identity_document TEXT,
-        has_scheduled_tasks INTEGER,
-        importation_id_create TEXT,
-        importation_id_update TEXT,
-        public_form_id_create TEXT,
-        public_form_id_update TEXT
-    )""")
-    conn.commit()
-    conn.close()
+Base = declarative_base()
 
 
-def insert_contacts(contacts):
-    conn = sqlite3.connect(DATABASE_PATH)
-    cursor = conn.cursor()
+def map_type(value):
+    """Retorna o tipo de dado do SQLAlchemy correspondente ao tipo Python."""
+    if isinstance(value, int):
+        return Integer
+    elif isinstance(value, float):
+        return Float
+    elif isinstance(value, str):
+        return String
+    else:
+        return String  # Por padrão, tratamos como String
 
-    # Inserir ou atualizar os contatos
-    for contact in contacts:
-        # Imprimir o contato para verificar a estrutura
-        print("Contato recebido:", contact)
 
-        cursor.execute(
-            """
-            INSERT OR REPLACE INTO contacts (
-                id, type_id, name, legal_name, register, cnpj, cpf, status_id, company_id,
-                relationship_id, line_of_business_id, origin_id, number_of_employees_id,
-                class_id, owner_id, birthday, next_anniversary, previous_anniversary,
-                note, email, website, role_id, department_id, skype, facebook,
-                street_address, street_address_number, street_address_line2, neighborhood,
-                zip_code, foreign_zip_code, foreign_zip_code_country_id, foreign_zip_code_without_mask,
-                city_id, state_id, country_id, currency_id, email_marketing, cnae_code,
-                cnae_name, cnae_secondary, latitude, longitude, import_id, create_importation_id,
-                update_importation_id, first_task_id, first_task_date, last_interaction_record_id,
-                last_deal_id, last_order_id, tasks_ordination, lead_id, editable, deletable,
-                creator_id, updater_id, create_date, last_update_date, key, last_document_id,
-                avatar_url, last_company_id, identity_document, has_scheduled_tasks, importation_id_create,
-                importation_id_update, public_form_id_create, public_form_id_update
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+def create_dynamic_class(table_name, json_data):
+    """Cria uma classe dinâmica de tabela baseada no JSON recebido."""
+    columns = {
+        "id": Column(
+            Integer, primary_key=True
+        )  # Garante que a coluna 'id' seja a chave primária
+    }
+
+    # A primeira entrada do JSON vai ser usada para descobrir as colunas
+    first_item = json_data[0] if json_data else {}
+
+    # Para cada chave do primeiro item do JSON, cria uma coluna com o tipo adequado
+    for key, value in first_item.items():
+        # Ignora a chave 'Id' do JSON, já que temos uma coluna 'id' como chave primária
+        if key.lower() == "id":
+            continue
+
+        # Cria uma coluna para o campo
+        columns[key] = Column(
+            map_type(value), nullable=True
+        )  # Permite valores nulos (None) nas colunas
+
+    # Define a classe dinamicamente
+    dynamic_class = type(table_name, (Base,), {"__tablename__": table_name, **columns})
+
+    # Cria a tabela no banco de dados
+    engine = create_engine(f"sqlite:///{DATABASE_PATH}", echo=False)
+    Base.metadata.create_all(engine)
+
+    return dynamic_class
+
+
+def insert_or_update_data(dynamic_class, json_data):
+    """Insere ou atualiza os dados na tabela criada dinamicamente."""
+    engine = create_engine(f"sqlite:///{DATABASE_PATH}", echo=False)
+    session = sessionmaker(bind=engine)()
+
+    try:
+        for item in json_data:
+            # Adiciona o valor de 'Id' do JSON à chave primária 'id'
+            item["id"] = item.get("Id")  # Atribui o valor de 'Id' do JSON à coluna 'id'
+
+            # Remove a chave 'Id' para não causar conflito na inserção
+            item.pop("Id", None)
+
+            # Verifica se o registro já existe com o mesmo id
+            existing_record = (
+                session.query(dynamic_class).filter_by(id=item["id"]).first()
             )
-            """,
-            (
-                contact["Id"],
-                contact["TypeId"],
-                contact["Name"],
-                contact["LegalName"],
-                contact["Register"],
-                contact["CNPJ"],
-                contact["CPF"],
-                contact["StatusId"],
-                contact["CompanyId"],
-                contact["RelationshipId"],
-                contact["LineOfBusinessId"],
-                contact["OriginId"],
-                contact["NumberOfEmployeesId"],
-                contact["ClassId"],
-                contact["OwnerId"],
-                contact["Birthday"],
-                contact["NextAnniversary"],
-                contact["PreviousAnniversary"],
-                contact["Note"],
-                contact["Email"],
-                contact["Website"],
-                contact["RoleId"],
-                contact["DepartmentId"],
-                contact["Skype"],
-                contact["Facebook"],
-                contact["StreetAddress"],
-                contact["StreetAddressNumber"],
-                contact["StreetAddressLine2"],
-                contact["Neighborhood"],
-                contact["ZipCode"],
-                contact["ForeignZipCode"],
-                contact["ForeignZipCodeCountryId"],
-                contact["ForeignZipCodeWithoutMask"],
-                contact["CityId"],
-                contact["StateId"],
-                contact["CountryId"],
-                contact["CurrencyId"],
-                contact["EmailMarketing"],
-                contact["CNAECode"],
-                contact["CNAEName"],
-                contact["CNAESecondary"],
-                contact["Latitude"],
-                contact["Longitude"],
-                contact["ImportId"],
-                contact["CreateImportationId"],
-                contact["UpdateImportationId"],
-                contact["FirstTaskId"],
-                contact["FirstTaskDate"],
-                contact["LastInteractionRecordId"],
-                contact["LastDealId"],
-                contact["LastOrderId"],
-                contact["TasksOrdination"],
-                contact["LeadId"],
-                contact["Editable"],
-                contact["Deletable"],
-                contact["CreatorId"],
-                contact["UpdaterId"],
-                contact["CreateDate"],
-                contact["LastUpdateDate"],
-                contact["Key"],
-                contact["LastDocumentId"],
-                contact["AvatarUrl"],
-                contact["LastCompanyId"],
-                contact["IdentityDocument"],
-                contact["HasScheduledTasks"],
-                contact["ImportationIdCreate"],
-                contact["ImportationIdUpdate"],
-                contact["PublicFormIdCreate"],
-                contact["PublicFormIdUpdate"],
-            ),
-        )
-    conn.commit()
-    conn.close()
+
+            if existing_record:
+                # Atualiza os campos do registro existente
+                print(f"Atualizando contato com ID {item['id']}.")
+                for key, value in item.items():
+                    setattr(
+                        existing_record, key, value
+                    )  # Atualiza os campos do contato existente
+            else:
+                # Cria uma instância da tabela com os dados e adiciona à sessão
+                record = dynamic_class(**item)
+                session.add(record)
+
+        session.commit()
+        print("Dados inseridos ou atualizados com sucesso.")
+    except Exception as e:
+        print(f"Erro ao inserir ou atualizar dados: {e}")
+        session.rollback()
+    finally:
+        session.close()
+
+
+# Conexão com o banco de dados
+engine = create_engine(f"sqlite:///{DATABASE_PATH}", echo=False)

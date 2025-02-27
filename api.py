@@ -9,24 +9,33 @@ def fetch_data():
     }
 
     # Modifique a URL para buscar contatos diretamente
-    url = f"{CRM_API_URL}/Contacts"  # Pode adicionar mais parâmetros, como $top para limitar a quantidade de registros
+    url = f"{CRM_API_URL}/Contacts"  # URL inicial para buscar contatos
 
-    response = requests.get(url, headers=headers)
+    all_contacts = []  # Lista para armazenar todos os contatos
 
-    # Verificando o status e a resposta da API
-    print(f"Status da resposta da API: {response.status_code}")
-    print(
-        "Resposta completa da API:", response.json()
-    )  # Verificando a resposta completa
+    while url:  # Continuar enquanto houver a URL para a próxima página
+        response = requests.get(url, headers=headers)
 
-    if response.status_code == 200:
-        # A resposta agora deve ter os contatos na chave 'value' ou similar
-        contacts = response.json().get(
-            "value", []
-        )  # Supondo que os contatos estejam na chave "value"
-        print(f"Total de contatos recebidos da API: {len(contacts)}")
+        if response.status_code == 200:
+            data = response.json()  # Converte a resposta para JSON
 
-        # Retorna os contatos para serem processados
-        return contacts
-    else:
-        raise Exception(f"Error fetching data: {response.status_code}")
+            # A resposta deve ter os contatos na chave 'value' ou similar
+            contacts = data.get("value", [])  # Contatos encontrados na chave "value"
+            all_contacts.extend(contacts)  # Adiciona os contatos à lista
+
+            # Verifica se há uma próxima página de dados
+            url = data.get(
+                "@odata.nextLink", None
+            )  # Obtém o link para a próxima página
+        else:
+            print(f"Erro ao acessar a API. Status Code: {response.status_code}")
+            break  # Interrompe o loop em caso de erro
+
+    print(f"Total de contatos recebidos: {len(all_contacts)}")
+    return all_contacts  # Retorna todos os contatos recebidos
+
+
+# Exemplo de uso
+if __name__ == "__main__":
+    all_contacts = fetch_data()
+    print(f"Total final de contatos: {len(all_contacts)}")
