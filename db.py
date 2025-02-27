@@ -1,3 +1,4 @@
+# db.py
 from sqlalchemy import create_engine, Column, Integer, String, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -31,14 +32,11 @@ def create_dynamic_class(table_name, json_data):
 
     # Para cada chave do primeiro item do JSON, cria uma coluna com o tipo adequado
     for key, value in first_item.items():
-        # Ignora a chave 'Id' do JSON, já que temos uma coluna 'id' como chave primária
         if key.lower() == "id":
             continue
-
-        # Cria uma coluna para o campo
         columns[key] = Column(
             map_type(value), nullable=True
-        )  # Permite valores nulos (None) nas colunas
+        )  # Permite valores nulos (None)
 
     # Define a classe dinamicamente
     dynamic_class = type(table_name, (Base,), {"__tablename__": table_name, **columns})
@@ -57,11 +55,10 @@ def insert_or_update_data(dynamic_class, json_data):
 
     try:
         for item in json_data:
-            # Adiciona o valor de 'Id' do JSON à chave primária 'id'
             item["id"] = item.get("Id")  # Atribui o valor de 'Id' do JSON à coluna 'id'
-
-            # Remove a chave 'Id' para não causar conflito na inserção
-            item.pop("Id", None)
+            item.pop(
+                "Id", None
+            )  # Remove a chave 'Id' para não causar conflito na inserção
 
             # Verifica se o registro já existe com o mesmo id
             existing_record = (
@@ -70,11 +67,10 @@ def insert_or_update_data(dynamic_class, json_data):
 
             if existing_record:
                 # Atualiza os campos do registro existente
-                print(f"Atualizando contato com ID {item['id']}.")
                 for key, value in item.items():
                     setattr(
                         existing_record, key, value
-                    )  # Atualiza os campos do contato existente
+                    )  # Atualiza os campos do registro existente
             else:
                 # Cria uma instância da tabela com os dados e adiciona à sessão
                 record = dynamic_class(**item)
@@ -89,5 +85,14 @@ def insert_or_update_data(dynamic_class, json_data):
         session.close()
 
 
-# Conexão com o banco de dados
-engine = create_engine(f"sqlite:///{DATABASE_PATH}", echo=False)
+def process_data(endpoint, data):
+    """Processa os dados do endpoint fornecido (inserção ou atualização no banco)."""
+    print(f"Iniciando o processamento dos dados de {endpoint}...")
+
+    # Cria a classe dinâmica para o endpoint
+    dynamic_class = create_dynamic_class(endpoint, data)
+
+    # Insere ou atualiza os dados no banco
+    insert_or_update_data(dynamic_class, data)
+
+    print(f"Dados de {endpoint} processados com sucesso!")
